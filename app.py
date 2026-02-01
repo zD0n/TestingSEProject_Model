@@ -1,10 +1,13 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from ultralytics import YOLO
 from PIL import Image
 import io, base64, cv2
 import numpy as np
 
 app = Flask(__name__)
+CORS(app)
+
 model = YOLO("yolo11n.pt")
 
 @app.route("/predict", methods=["POST"])
