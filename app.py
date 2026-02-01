@@ -10,7 +10,6 @@ CORS(app)
 # Load model once
 model = YOLO("yolo11n.pt")
 model.to("cpu")
-model.model.fuse = False
 
 @app.route("/", methods=["GET"])
 def health():
@@ -24,7 +23,6 @@ def predict():
     file = request.files["image"]
     image = Image.open(io.BytesIO(file.read())).convert("RGB")
 
-    # 🔥 critical for memory
     image.thumbnail((640, 640))
 
     results = model.predict(
