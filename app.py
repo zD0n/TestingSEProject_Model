@@ -3,12 +3,18 @@ from flask_cors import CORS
 from ultralytics import YOLO
 from PIL import Image
 import io, base64, cv2
-import numpy as np
 
 app = Flask(__name__)
 CORS(app)
 
+# Load model once
 model = YOLO("yolo11n.pt")
+model.to("cpu")
+model.model.fuse = False
+
+@app.route("/", methods=["GET"])
+def health():
+    return "YOLO API is running"
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -18,27 +24,31 @@ def predict():
     file = request.files["image"]
     image = Image.open(io.BytesIO(file.read())).convert("RGB")
 
-    results = model.predict(image, conf=0.8)
+    # 🔥 critical for memory
+    image.thumbnail((640, 640))
 
-    # Bounding box image
+    results = model.predict(
+        image,
+        conf=0.8,
+        device="cpu",
+        verbose=False
+    )
+
     im = results[0].plot()
     im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
 
-    pil_img = Image.fromarray(im)
     buf = io.BytesIO()
-    pil_img.save(buf, format="JPEG")
-
-    img_base64 = base64.b64encode(buf.getvalue()).decode()
+    Image.fromarray(im).save(buf, format="JPEG")
 
     detections = []
-    if results[0].boxes is not None:
-        for cls_id, conf in zip(results[0].boxes.cls, results[0].boxes.conf):
+    if results[0].boxes is not None and len(results[0].boxes) > 0:
+        for c, conf in zip(results[0].boxes.cls, results[0].boxes.conf):
             detections.append({
-                "class": results[0].names[int(cls_id)],
+                "class": results[0].names[int(c)],
                 "confidence": float(conf)
             })
 
     return jsonify({
         "detections": detections,
-        "image": img_base64
+        "image": base64.b64encode(buf.getvalue()).decode()
     })
